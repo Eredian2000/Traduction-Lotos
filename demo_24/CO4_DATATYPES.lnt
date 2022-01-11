@@ -1,0 +1,2397 @@
+module CO4_DATATYPES is
+
+(**********************************)
+type BaseId is
+  First,
+  Next(precedent:BaseId)
+  with ==, <>
+end type
+
+function base0: BaseId is
+  return First
+end function
+
+function base1: BaseId is
+  return Next(base0)
+end function
+
+function base2: BaseId is
+  return Next(base1)
+end function
+
+function base3: BaseId is
+  return Next(base2)
+end function
+
+function base4: BaseId is
+  return Next(base3)
+end function
+
+function base5: BaseId is
+  return Next(base4)
+end function
+
+function base6: BaseId is
+  return Next(base5)
+end function
+
+function base7: BaseId is
+  return Next(base6)
+end function
+
+function base8: BaseId is
+  return Next(base7)
+end function
+
+function base9: BaseId is
+  return Next(base8)
+end function
+
+(**********************************)
+
+type Id is
+  First,
+  Next(precedent:Id)
+  with ==, <>
+end type
+
+(**********************************)
+
+type Atom is
+  white,
+  black,
+  square
+  with ==, <>
+end type
+
+function First:Atom is
+  return white
+end function
+
+function Last:Atom is
+  return square
+end function
+
+function IsWhite(a:Atom):Bool is
+  return a==white
+end function
+
+function IsBlack(a:Atom):Bool is
+  return a==black
+end function
+
+function IsSquare(a:Atom):Bool is
+  return a==square
+end function
+
+function Succ(pred:Atom) :Atom is
+  if IsWhite(pred) then return black end if
+  if IsBlack(pred) then return square end if
+  raise noNext
+end function
+
+function Pred(succ:Atom) :Atom is
+  if IsSquare(succ) then return black end if
+  if IsBlack(succ) then return white end if
+  raise noPred
+end function
+
+function comp(a1,a2:Atom) :Bool is
+  if IsWhite(a1) and IsBlack(a2)  then return false end if
+  if IsWhite(a2) and IsBlack(a1)  then return false end if
+  return true
+end function
+
+(**********************************)
+
+type Knowledge is
+  {},
+  Insert_C(a:Atom, k:Knowledge)
+  with ==,<>
+end type
+
+
+function Insert (a : Atom, K : Knowledge) : Knowledge is
+  var Kbis : Knowledge, x : Atom in
+  case K in
+    {}                  -> return Insert_C (a,{})
+    | Insert_C (x,Kbis) -> if a == x  then return K
+                           else return Insert_C (x, Insert (a,Kbis))
+                           end if
+  end case
+  end var
+end function
+
+function Remove (a : Atom, K : Knowledge) : Knowledge is
+  var Kbis : Knowledge, x : Atom in
+  case K in
+    {}                  -> return {}
+    | Insert_C (x,Kbis) -> if a == x  then return Kbis
+                           else return Insert_C (x, Remove (a,Kbis))
+                           end if
+  end case
+  end var
+end function
+
+function IsIn (a : Atom, K : Knowledge) : Bool is
+  var Kbis : Knowledge, x : Atom in
+  case K in
+    {}                  -> return false
+    | Insert_C (x,Kbis) -> if a == x  then return true
+                           else return IsIn(a,Kbis)
+                           end if
+  end case
+  end var
+end function
+
+function NotIn (a : Atom, K : Knowledge) : Bool is
+   return not IsIn(a,K)
+end function
+
+function Union (K1,K2 : Knowledge) : Knowledge is
+  var Kbis : Knowledge, x : Atom in
+  case K1 in
+    {}                  -> return K2
+    | Insert_C (x,Kbis) -> return Union(Kbis, Insert_C (x, K2))
+  end case
+  end var
+end function
+
+function Ints (K1,K2 : Knowledge) : Knowledge is
+  var Kbis : Knowledge, x : Atom in
+  case K1 in
+    {}                  -> return {}
+    | Insert_C (x,Kbis) -> if IsIn(x,K2) then return Insert_C (x, Ints(Kbis,K2))
+                           else return Ints(Kbis,K2)
+                           end if
+  end case
+  end var
+end function
+
+function Minus (K1,K2 : Knowledge) : Knowledge is
+  var Kbis : Knowledge, x : Atom in
+  case K2 in
+    {}                  -> return K1
+    | Insert_C (x,Kbis) -> return Minus(Remove(x,K1), Kbis)
+  end case
+  end var
+end function
+
+function Includes (K1,K2 : Knowledge) : Bool is
+  var Kbis : Knowledge, x : Atom in
+  case K2 in
+    {}                  -> return true
+    | Insert_C (x,Kbis) -> return IsIn(x,K) and Includes(K1, Kbis)
+  end case
+  end var
+end function
+
+function IsSubsetOf (K1,K2 : Knowledge) : Bool is
+   return Includes(K2,K1)
+end function
+
+function Card(K:Knowledge) : Nat is
+  var Kbis : Knowledge, x : Atom in
+  case K in
+    {}                  -> return 0
+    | Insert_C (x,Kbis) -> return 1 + Card(Kbis)
+  end case
+  end var
+end function
+
+(**********************************)
+
+type Change is
+  assert(a:Atom),
+  retract(a:Atom)
+  with ==, <>
+end type
+
+function Is_assert(c:Change): Bool is
+  var a: Atom in
+  case c in
+    assert(a)    -> return true
+    | retract(a) -> return false
+  end case
+  end var
+end function
+
+
+
+function Is_retract(c:Change): Bool is
+  var a: Atom in
+  case c in
+    assert(a)    -> return false
+    | retract(a) -> return true
+  end case
+  end var
+end function
+
+(**********************************)
+
+type Proposal is
+  <>,
+  +(c:Change, p:Proposal)
+  with ==, <>
+end type
+
+function String(c:Change): Proposal is
+  return c + <>
+end function
+
+function +(p:Proposal, c:Change): Proposal is
+  var pbis:Proposal, c2:Change in
+  case p in
+    <>           -> return c + <>
+    | +(c2,pbis) -> return c2 + (pbis + c)
+  end case
+  end var
+end function
+
+function ++(p1,p2: Proposal): Proposal is
+  var pbis:Proposal, c:Change in
+  case p1 in
+    <>          -> return p2
+    | +(c,pbis) -> return c + (pbis ++ p2)
+  end case
+  end var
+end function
+
+function Reverse(p: Proposal): Proposal is
+  var pbis:Proposal, c:Change in
+  case p in
+    <>          -> return <>
+    | +(c,pbis) -> return Reverse(pbis) + c
+  end case
+  end var
+end function
+
+function Length(p: Proposal): Nat is
+  var pbis:Proposal, c:Change in
+  case p in
+    <>          -> return 0
+    | +(c,pbis) -> return 1 + Length(pbis)
+  end case
+  end var
+end function
+
+(**********************************)
+
+-- Various operations
+
+function atom(c:Change): Atom is
+  var a: Atom in
+  case c in
+    assert(a)    -> return a
+    | retract(a) -> return a
+  end case
+  end var
+end function
+
+function +(k:Knowledge, c:Change): Knowledge is
+  var a:Atom in
+  case c in
+    assert(a)    ->  return Insert(a, k)
+    | retract(a) ->  return Remove(a, k)
+  end case
+  end var
+end function
+
+function +(k:Knowledge, p:Proposal): Knowledge is
+  var pbis:Proposal, c:Change in
+  case p in
+    <>           -> return k
+    | +(c2,pbis) -> return (k + c2) + pbis
+  end case
+  end var
+end function
+
+
+function *(p1,p2:Proposal): Proposal is
+  return p1++p2
+end function
+
+function query(k:Knowledge, a:Atom): Bool is
+  var a1:Atom, kbis:Knowledge in
+  case k in
+    {}                   ->  return true
+    | Insert_C(a1, kbis) ->  return comp(a1, a) and query(a,kbis)
+  end case
+  end var
+end function
+
+function isconsistent(k:Knowledge): Bool is
+  var a:Atom, kbis:Knowledge in
+  case k in
+    {}                  ->  return true
+    | Insert_C(a, kbis) ->  return query(kbis,a) and isconsistent(kbis)
+  end case
+  end var
+end function
+
+function query(k:Knowledge, p:Proposal): Bool is
+  isconsistent(k + p)
+end function
+
+
+function assert(k:Knowledge): Proposal is
+  var a:Atom, kbis:Knowledge in
+  case k in
+    {}                  ->  return <>
+    | Insert_C(a, kbis) ->  return assert(a) + assert(remove(a,k))
+  end case
+  end var
+end function
+
+(**********************************)
+
+type Request is
+  reqregister(b:BaseId),
+  reqevaluate(p:Proposal),
+  reqachieve(p:Proposal),
+  reqforward(r:Request),
+  reqchallenge(p:Proposal),
+  reqtell(p:Proposal)
+  with ==, <>
+end type
+
+function is_reqregister(r:Request) is
+  var b:BaseId, r2:Request, p:Proposal in
+  case r in
+    reqregister(b)    -> return true
+    | reqevaluate(p)  -> return false
+    | reqachieve(p)   -> return false
+    | reqforward(r2)  -> return false
+    | reqchallenge(p) -> return false
+    | reqtell(p)      -> return false
+  end case
+  end var
+end function
+
+function is_reqevaluate(r:Request) is
+  var b:BaseId, r2:Request, p:Proposal in
+  case r in
+    reqregister(b)    -> return false
+    | reqevaluate(p)  -> return true
+    | reqachieve(p)   -> return false
+    | reqforward(r2)  -> return false
+    | reqchallenge(p) -> return false
+    | reqtell(p)      -> return false
+  end case
+  end var
+end function
+
+function is_reqachieve(r:Request) is
+  var b:BaseId, r2:Request, p:Proposal in
+  case r in
+    reqregister(b)    -> return false
+    | reqevaluate(p)  -> return false
+    | reqachieve(p)   -> return true
+    | reqforward(r2)  -> return false
+    | reqchallenge(p) -> return false
+    | reqtell(p)      -> return false
+  end case
+  end var
+end function
+
+function is_reqforward(r:Request) is
+  var b:BaseId, r2:Request, p:Proposal in
+  case r in
+    reqregister(b)    -> return false
+    | reqevaluate(p)  -> return false
+    | reqachieve(p)   -> return false
+    | reqforward(r2)  -> return true
+    | reqchallenge(p) -> return false
+    | reqtell(p)      -> return false
+  end case
+  end var
+end function
+
+function is_reqchallenge(r:Request) is
+  var b:BaseId, r2:Request, p:Proposal in
+  case r in
+    reqregister(b)    -> return false
+    | reqevaluate(p)  -> return false
+    | reqachieve(p)   -> return false
+    | reqforward(r2)  -> return false
+    | reqchallenge(p) -> return true
+    | reqtell(p)      -> return false
+  end case
+  end var
+end function
+
+function is_reqtell(r:Request) is
+  var b:BaseId, r2:Request, p:Proposal in
+  case r in
+    reqregister(b)    -> return false
+    | reqevaluate(p)  -> return false
+    | reqachieve(p)   -> return false
+    | reqforward(r2)  -> return false
+    | reqchallenge(p) -> return false
+    | reqtell(p)      -> return true
+  end case
+  end var
+end function
+
+function content(r:Request): BaseId is
+  var b:BaseId, r2:Request, p:Proposal in
+  case r in
+    reqregister(b)    -> return b
+    | reqevaluate(p)  -> raise error
+    | reqachieve(p)   -> raise error
+    | reqforward(r2)  -> raise error
+    | reqchallenge(p) -> raise error
+    | reqtell(p)      -> raise error
+  end case
+  end var
+end function
+
+function content(r:Request): Proposal is
+  var b:BaseId, r2:Request, p:Proposal in
+  case r in
+    reqregister(b)    -> raise error
+    | reqevaluate(p)  -> return p
+    | reqachieve(p)   -> return p
+    | reqforward(r2)  -> raise error
+    | reqchallenge(p) -> return p
+    | reqtell(p)      -> return p
+  end case
+  end var
+end function
+
+function content(r:Request): Request is
+  var b:BaseId, r2:Request, p:Proposal in
+  case r in
+    reqregister(b)    -> raise error
+    | reqevaluate(p)  -> raise error
+    | reqachieve(p)   -> raise error
+    | reqforward(r2)  -> return r2
+    | reqchallenge(p) -> raise error
+    | reqtell(p)      -> raise error
+  end case
+  end var
+end function
+
+(**********************************)
+
+type Answer is
+  acceptx,
+  reject,
+  challenge(id:Id, p:Proposal)
+  with ==, <>
+end type
+
+function Is_acceptx(a:Answer): Bool is:
+  var id:Id, p:Proposal in
+  case a in
+    acceptx              -> return true
+    | reject             -> return false
+    | challenge(id, p)   -> return false
+  end case
+  end var
+end function
+
+function Is_reject(a:Answer): Bool is:
+  var id:Id, p:Proposal in
+  case a in
+    acceptx              -> return false
+    | reject             -> return true
+    | challenge(id, p)   -> return false
+  end case
+  end var
+end function
+
+function Is_challenge(a:Answer): Bool is:
+  var id:Id, p:Proposal in
+  case a in
+    acceptx              -> return false
+    | reject             -> return false
+    | challenge(id, p)   -> return true
+  end case
+  end var
+end function
+
+function replywith(a:Answer): Id is
+  var id:Id, p:Proposal in
+  case a in
+    acceptx              -> raise error
+    | reject             -> raise error
+    | challenge(id, p)   -> return id
+  end case
+  end var
+end function
+
+function content(a:Answer): Id is
+  var id:Id, p:Proposal in
+  case a in
+    acceptx              -> raise error
+    | reject             -> raise error
+    | challenge(id, p)   -> return p
+  end case
+  end var
+end function
+
+function answer(b:Bool): Answer is
+  if(b) then return acceptx 
+  else return reject
+  end if
+end function
+
+(**********************************)
+
+type message is:
+  register(id:Id, b:BaseId),
+  evaluate(id:Id, p:Proposal),
+  achieve(id:Id, p:Proposal),
+  forward(id:Id, r:Request),
+  deny(id:Id),
+  reply(id:Id, a:Answer),
+  askall(id:Id, r:Request),
+  error(id:Id),
+  notify(id:Id, a:Answer),
+  poolnotify(id:Id, a:Answer),
+  pooldeny(id:Id),
+  tell(p:Proposal)
+  with ==, <>
+end type
+
+function Is_register(m:Message): Bool is
+  var id:Id, b:BaseId, r:Request, a:Answer, p:Proposal in
+  case a in
+    register(id,b)      -> return true
+    | evaluate(id,p)    -> return false
+    | achieve(id,p)     -> return false
+    | forward(id,r)     -> return false
+    | deny(id)          -> return false
+    | reply(id, a)      -> return false
+    | askall(id, r)     -> return false
+    | error(id)         -> return false
+    | notify(id, a)     -> return false
+    | poolnotify(id, a) -> return false
+    | pooldeny(id)      -> return false
+    | tell(p)           -> return false
+  end case
+  end var
+end function
+
+function Is_evaluate(m:Message): Bool is
+  var id:Id, b:BaseId, r:Request, a:Answer, p:Proposal in
+  case a in
+    register(id,b)      -> return false
+    | evaluate(id,p)    -> return true
+    | achieve(id,p)     -> return false
+    | forward(id,r)     -> return false
+    | deny(id)          -> return false
+    | reply(id, a)      -> return false
+    | askall(id, r)     -> return false
+    | error(id)         -> return false
+    | notify(id, a)     -> return false
+    | poolnotify(id, a) -> return false
+    | pooldeny(id)      -> return false
+    | tell(p)           -> return false
+  end case
+  end var
+end function
+
+function Is_achieve(m:Message): Bool is
+  var id:Id, b:BaseId, r:Request, a:Answer, p:Proposal in
+  case a in
+    register(id,b)      -> return false
+    | evaluate(id,p)    -> return false
+    | achieve(id,p)     -> return true
+    | forward(id,r)     -> return false
+    | deny(id)          -> return false
+    | reply(id, a)      -> return false
+    | askall(id, r)     -> return false
+    | error(id)         -> return false
+    | notify(id, a)     -> return false
+    | poolnotify(id, a) -> return false
+    | pooldeny(id)      -> return false
+    | tell(p)           -> return false
+  end case
+  end var
+end function
+
+function Is_forward(m:Message): Bool is
+  var id:Id, b:BaseId, r:Request, a:Answer, p:Proposal in
+  case a in
+    register(id,b)      -> return false
+    | evaluate(id,p)    -> return false
+    | achieve(id,p)     -> return false
+    | forward(id,r)     -> return true
+    | deny(id)          -> return false
+    | reply(id, a)      -> return false
+    | askall(id, r)     -> return false
+    | error(id)         -> return false
+    | notify(id, a)     -> return false
+    | poolnotify(id, a) -> return false
+    | pooldeny(id)      -> return false
+    | tell(p)           -> return false
+  end case
+  end var
+end function
+
+function Is_deny(m:Message): Bool is
+  var id:Id, b:BaseId, r:Request, a:Answer, p:Proposal in
+  case a in
+    register(id,b)      -> return false
+    | evaluate(id,p)    -> return false
+    | achieve(id,p)     -> return false
+    | forward(id,r)     -> return false
+    | deny(id)          -> return true
+    | reply(id, a)      -> return false
+    | askall(id, r)     -> return false
+    | error(id)         -> return false
+    | notify(id, a)     -> return false
+    | poolnotify(id, a) -> return false
+    | pooldeny(id)      -> return false
+    | tell(p)           -> return false
+  end case
+  end var
+end function
+
+function Is_reply(m:Message): Bool is
+  var id:Id, b:BaseId, r:Request, a:Answer, p:Proposal in
+  case a in
+    register(id,b)      -> return false
+    | evaluate(id,p)    -> return false
+    | achieve(id,p)     -> return false
+    | forward(id,r)     -> return false
+    | deny(id)          -> return false
+    | reply(id, a)      -> return true
+    | askall(id, r)     -> return false
+    | error(id)         -> return false
+    | notify(id, a)     -> return false
+    | poolnotify(id, a) -> return false
+    | pooldeny(id)      -> return false
+    | tell(p)           -> return false
+  end case
+  end var
+end function
+
+function Is_askall(m:Message): Bool is
+  var id:Id, b:BaseId, r:Request, a:Answer, p:Proposal in
+  case a in
+    register(id,b)      -> return false
+    | evaluate(id,p)    -> return false
+    | achieve(id,p)     -> return false
+    | forward(id,r)     -> return false
+    | deny(id)          -> return false
+    | reply(id, a)      -> return false
+    | askall(id, r)     -> return true
+    | error(id)         -> return false
+    | notify(id, a)     -> return false
+    | poolnotify(id, a) -> return false
+    | pooldeny(id)      -> return false
+    | tell(p)           -> return false
+  end case
+  end var
+end function
+
+function Is_error(m:Message): Bool is
+  var id:Id, b:BaseId, r:Request, a:Answer, p:Proposal in
+  case a in
+    register(id,b)      -> return false
+    | evaluate(id,p)    -> return false
+    | achieve(id,p)     -> return false
+    | forward(id,r)     -> return false
+    | deny(id)          -> return false
+    | reply(id, a)      -> return false
+    | askall(id, r)     -> return false
+    | error(id)         -> return true
+    | notify(id, a)     -> return false
+    | poolnotify(id, a) -> return false
+    | pooldeny(id)      -> return false
+    | tell(p)           -> return false
+  end case
+  end var
+end function
+
+function Is_notify(m:Message): Bool is
+  var id:Id, b:BaseId, r:Request, a:Answer, p:Proposal in
+  case a in
+    register(id,b)      -> return false
+    | evaluate(id,p)    -> return false
+    | achieve(id,p)     -> return false
+    | forward(id,r)     -> return false
+    | deny(id)          -> return false
+    | reply(id, a)      -> return false
+    | askall(id, r)     -> return false
+    | error(id)         -> return false
+    | notify(id, a)     -> return true
+    | poolnotify(id, a) -> return false
+    | pooldeny(id)      -> return false
+    | tell(p)           -> return false
+  end case
+  end var
+end function
+
+function Is_poolnotify(m:Message): Bool is
+  var id:Id, b:BaseId, r:Request, a:Answer, p:Proposal in
+  case a in
+    register(id,b)      -> return false
+    | evaluate(id,p)    -> return false
+    | achieve(id,p)     -> return false
+    | forward(id,r)     -> return false
+    | deny(id)          -> return false
+    | reply(id, a)      -> return false
+    | askall(id, r)     -> return false
+    | error(id)         -> return false
+    | notify(id, a)     -> return false
+    | poolnotify(id, a) -> return true
+    | pooldeny(id)      -> return false
+    | tell(p)           -> return false
+  end case
+  end var
+end function
+
+function Is_pooldeny(m:Message): Bool is
+  var id:Id, b:BaseId, r:Request, a:Answer, p:Proposal in
+  case a in
+    register(id,b)      -> return false
+    | evaluate(id,p)    -> return false
+    | achieve(id,p)     -> return false
+    | forward(id,r)     -> return false
+    | deny(id)          -> return false
+    | reply(id, a)      -> return false
+    | askall(id, r)     -> return false
+    | error(id)         -> return false
+    | notify(id, a)     -> return false
+    | poolnotify(id, a) -> return false
+    | pooldeny(id)      -> return true
+    | tell(p)           -> return false
+  end case
+  end var
+end function
+
+function Is_tell(m:Message): Bool is
+  var id:Id, b:BaseId, r:Request, a:Answer, p:Proposal in
+  case a in
+    register(id,b)      -> return false
+    | evaluate(id,p)    -> return false
+    | achieve(id,p)     -> return false
+    | forward(id,r)     -> return false
+    | deny(id)          -> return false
+    | reply(id, a)      -> return false
+    | askall(id, r)     -> return false
+    | error(id)         -> return false
+    | notify(id, a)     -> return false
+    | poolnotify(id, a) -> return false
+    | pooldeny(id)      -> return false
+    | tell(p)           -> return true
+  end case
+  end var
+end function
+
+function replywith(m:Message):Id is
+  var id:Id, b:BaseId, r:Request, a:Answer, p:Proposal in
+  case a in
+    register(id,b)      -> return id
+    | evaluate(id,p)    -> return id
+    | achieve(id,p)     -> return id
+    | forward(id,r)     -> return id
+    | deny(id)          -> raise error
+    | reply(id, a)      -> raise error
+    | askall(id, r)     -> return id
+    | error(id)         -> raise error
+    | notify(id, a)     -> raise error
+    | poolnotify(id, a) -> raise error
+    | pooldeny(id)      -> raise error
+    | tell(p)           -> raise error
+  end case
+  end var
+end function
+
+function inreplyto(m:Message):Id is
+  var id:Id, b:BaseId, r:Request, a:Answer, p:Proposal in
+  case a in
+    register(id,b)      -> raise error
+    | evaluate(id,p)    -> raise error
+    | achieve(id,p)     -> raise error
+    | forward(id,r)     -> raise error
+    | deny(id)          -> return id
+    | reply(id, a)      -> return id
+    | askall(id, r)     -> raise error
+    | error(id)         -> return id
+    | notify(id, a)     -> return id
+    | poolnotify(id, a) -> return id
+    | pooldeny(id)      -> return id
+    | tell(p)           -> raise error
+  end case
+  end var
+end function
+
+function content(m:Message):BaseId is
+  var id:Id, b:BaseId, r:Request, a:Answer, p:Proposal in
+  case a in
+    register(id,b)      -> return b
+    | evaluate(id,p)    -> raise error
+    | achieve(id,p)     -> raise error
+    | forward(id,r)     -> raise error
+    | deny(id)          -> raise error
+    | reply(id, a)      -> raise error
+    | askall(id, r)     -> raise error
+    | error(id)         -> raise error
+    | notify(id, a)     -> raise error
+    | poolnotify(id, a) -> raise error
+    | pooldeny(id)      -> raise error
+    | tell(p)           -> raise error
+  end case
+  end var
+end function
+
+function content(m:Message):Proposal is
+  var id:Id, b:BaseId, r:Request, a:Answer, p:Proposal in
+  case a in
+    register(id,b)      -> raise error
+    | evaluate(id,p)    -> return p
+    | achieve(id,p)     -> return p
+    | forward(id,r)     -> raise error
+    | deny(id)          -> raise error
+    | reply(id, a)      -> raise error
+    | askall(id, r)     -> raise error
+    | error(id)         -> raise error
+    | notify(id, a)     -> raise error
+    | poolnotify(id, a) -> raise error
+    | pooldeny(id)      -> raise error
+    | tell(p)           -> return p
+  end case
+  end var
+end function
+
+function content(m:Message):Request is
+  var id:Id, b:BaseId, r:Request, a:Answer, p:Proposal in
+  case a in
+    register(id,b)      -> raise error
+    | evaluate(id,p)    -> raise error
+    | achieve(id,p)     -> raise error
+    | forward(id,r)     -> return r
+    | deny(id)          -> raise error
+    | reply(id, a)      -> raise error
+    | askall(id, r)     -> return r
+    | error(id)         -> raise error
+    | notify(id, a)     -> raise error
+    | poolnotify(id, a) -> raise error
+    | pooldeny(id)      -> raise error
+    | tell(p)           -> raise error
+  end case
+  end var
+end function
+
+function content(m:Message):Answer is
+  var id:Id, b:BaseId, r:Request, a:Answer, p:Proposal in
+  case a in
+    register(id,b)      -> raise error
+    | evaluate(id,p)    -> raise error
+    | achieve(id,p)     -> raise error
+    | forward(id,r)     -> raise error
+    | deny(id)          -> raise error
+    | reply(id, a)      -> return a
+    | askall(id, r)     -> raise error
+    | error(id)         -> raise error
+    | notify(id, a)     -> return a
+    | poolnotify(id, a) -> return a
+    | pooldeny(id)      -> raise error
+    | tell(p)           -> raise error
+  end case
+  end var
+end function
+
+
+(**********************************)
+
+type UserAction is
+  doregister,
+  doevaluate,
+  doachieve,
+  doforward,
+  dodeny,
+  doaccept,
+  doreject,
+  dochallenge
+  with ==, <>
+end type
+
+function First: UserAction is
+  return doregister
+end function
+
+function Last: UserAction is
+  return dochallenge
+end function
+
+function Succ(u: UserAction):UserAction is
+  case u in
+    doregister      ->  return doevaluate
+    | doevaluate    ->  return doachieve
+    | doachieve     ->  return doforward
+    | doforward     ->  return dodeny
+    | dodeny        ->  return doaccept
+    | doaccept      ->  return doreject
+    | doreject      ->  return dochallenge
+    | dochallenge   ->  raise error
+  end case
+end function
+
+function Pred(u: UserAction):UserAction is
+  case u in
+    doregister      ->  raise error
+    | doevaluate    ->  return doregister
+    | doachieve     ->  return doevaluate
+    | doforward     ->  return doachieve
+    | dodeny        ->  return doforward
+    | doaccept      ->  return dodeny
+    | doreject      ->  return doaccept
+    | dochallenge   ->  return doreject
+  end case
+end function
+
+function is_doregister(u: UserAction): Bool is
+  case u in
+    doregister      ->  return true
+    | doevaluate    ->  return false
+    | doachieve     ->  return false
+    | doforward     ->  return false
+    | dodeny        ->  return false
+    | doaccept      ->  return false
+    | doreject      ->  return false
+    | dochallenge   ->  return false
+  end case
+end function
+
+function is_doevaluate(u: UserAction): Bool is
+  case u in
+    doregister      ->  return false
+    | doevaluate    ->  return true
+    | doachieve     ->  return false
+    | doforward     ->  return false
+    | dodeny        ->  return false
+    | doaccept      ->  return false
+    | doreject      ->  return false
+    | dochallenge   ->  return false
+  end case
+end function
+
+function is_doachieve(u: UserAction): Bool is
+  case u in
+    doregister      ->  return false
+    | doevaluate    ->  return false
+    | doachieve     ->  return true
+    | doforward     ->  return false
+    | dodeny        ->  return false
+    | doaccept      ->  return false
+    | doreject      ->  return false
+    | dochallenge   ->  return false
+  end case
+end function
+
+function is_doforward(u: UserAction): Bool is
+  case u in
+    doregister      ->  return false
+    | doevaluate    ->  return false
+    | doachieve     ->  return false
+    | doforward     ->  return true
+    | dodeny        ->  return false
+    | doaccept      ->  return false
+    | doreject      ->  return false
+    | dochallenge   ->  return false
+  end case
+end function
+
+function is_dodeny(u: UserAction): Bool is
+  case u in
+    doregister      ->  return false
+    | doevaluate    ->  return false
+    | doachieve     ->  return false
+    | doforward     ->  return false
+    | dodeny        ->  return true
+    | doaccept      ->  return false
+    | doreject      ->  return false
+    | dochallenge   ->  return false
+  end case
+end function
+
+function is_doaccept(u: UserAction): Bool is
+  case u in
+    doregister      ->  return false
+    | doevaluate    ->  return false
+    | doachieve     ->  return false
+    | doforward     ->  return false
+    | dodeny        ->  return false
+    | doaccept      ->  return true
+    | doreject      ->  return false
+    | dochallenge   ->  return false
+  end case
+end function
+
+function is_doreject(u: UserAction): Bool is
+  case u in
+    doregister      ->  return false
+    | doevaluate    ->  return false
+    | doachieve     ->  return false
+    | doforward     ->  return false
+    | dodeny        ->  return false
+    | doaccept      ->  return false
+    | doreject      ->  return true
+    | dochallenge   ->  return false
+  end case
+end function
+
+function is_dochallenge(u: UserAction): Bool is
+  case u in
+    doregister      ->  return false
+    | doevaluate    ->  return false
+    | doachieve     ->  return false
+    | doforward     ->  return false
+    | dodeny        ->  return false
+    | doaccept      ->  return false
+    | doreject      ->  return false
+    | dochallenge   ->  return true
+  end case
+end function
+
+(**********************************)
+
+type SignalVal is
+  sigregistered,
+  sigstored,
+  signotinA,
+  signotinP,
+  signotinC,
+  signotconsistent
+  with ==, <>
+end type
+
+function First: SignalVal is
+  return sigstored
+end function
+
+function Last: SignalVal is
+  return signotconsistent
+end function
+
+function Succ(s: SignalVal):SignalVal is
+  case u in
+    sigregistered       ->  return sigstored
+    | sigstored         ->  return signotinA
+    | signotinA         ->  return signotinP
+    | signotinP         ->  return signotinC
+    | signotinC         ->  return signotconsistent
+    | signotconsistent  ->  raise error
+  end case
+end function
+
+function Pred(s: SignalVal):SignalVal is
+  case u in
+    sigregistered       ->  raise error
+    | sigstored         ->  return sigregistered
+    | signotinA         ->  return sigstored
+    | signotinP         ->  return signotinA
+    | signotinC         ->  return signotinP
+    | signotconsistent  ->  return signotinC
+  end case
+end function
+
+function Is_sigregistered(s: SignalVal):Bool is
+  case u in
+    sigregistered       ->  return true
+    | sigstored         ->  return false
+    | signotinA         ->  return false
+    | signotinP         ->  return false
+    | signotinC         ->  return false
+    | signotconsistent  ->  return false
+  end case
+end function
+
+function is_sigstored(s: SignalVal):Bool is
+  case u in
+    sigregistered       ->  return false
+    | sigstored         ->  return true
+    | signotinA         ->  return false
+    | signotinP         ->  return false
+    | signotinC         ->  return false
+    | signotconsistent  ->  return false
+  end case
+end function
+
+function is_signotinA(s: SignalVal):Bool is
+  case u in
+    sigregistered       ->  return false
+    | sigstored         ->  return false
+    | signotinA         ->  return true
+    | signotinP         ->  return false
+    | signotinC         ->  return false
+    | signotconsistent  ->  return false
+  end case
+end function
+
+function is_signotinP(s: SignalVal):Bool is
+  case u in
+    sigregistered       ->  return false
+    | sigstored         ->  return false
+    | signotinA         ->  return false
+    | signotinP         ->  return true
+    | signotinC         ->  return false
+    | signotconsistent  ->  return false
+  end case
+end function
+
+function is_signotinC(s: SignalVal):Bool is
+  case u in
+    sigregistered       ->  return false
+    | sigstored         ->  return false
+    | signotinA         ->  return false
+    | signotinP         ->  return false
+    | signotinC         ->  return true
+    | signotconsistent  ->  return false
+  end case
+end function
+
+function is_signotconsistent(s: SignalVal):Bool is
+  case u in
+    sigregistered       ->  return false
+    | sigstored         ->  return false
+    | signotinA         ->  return false
+    | signotinP         ->  return false
+    | signotinC         ->  return false
+    | signotconsistent  ->  return true
+  end case
+end function
+
+(**********************************)
+
+type SubmittedEntry is 
+  submitted(id:Id, r:Request)
+  with ==, <>
+end type
+
+function id(s: SubmittedEntry): Id is 
+  var id:Id, r:Request in:
+  case s in
+    submitted(id, r) -> return id
+  end case
+  end var
+end function
+
+function req(s: SubmittedEntry): Request is 
+  var id:Id, r:Request in:
+  case s in
+    submitted(id, r) -> return r
+  end case
+  end var
+end function
+
+function Set_id(id:Id, s: SubmittedEntry): SubmittedEntry is 
+  var id2:Id, r:Request in:
+  case s in
+    submitted(id2, r) -> return submitted(id, r)
+  end case
+  end var
+end function
+
+function Set_req(req:Request, s: SubmittedEntry): SubmittedEntry is 
+  var id:Id, r:Request in:
+  case s in
+    submitted(id, r) -> return submitted(id, req)
+  end case
+  end var
+end function
+
+
+
+(**********************************)
+
+type SubmittedTbl is
+  {},
+  Insert_C(s: SubmittedEntry, t: SubmittedTbl)
+  with ==, <>
+end type
+
+function Insert(s: SubmittedEntry, t: SubmittedTbl): SubmittedTbl is
+  var s2: SubmittedEntry, t2: SubmittedTbl in
+  case t in
+    {}                 -> return Insert_C(s, {})
+    | Insert_C(s2, t2) -> if id(s2) == id(s) then return Insert_C(s,t2)
+                          else return Insert_C(s2, Insert(s, t2))
+                          end if
+  end case
+  end var
+end function
+
+function Remove(id: Id, t: SubmittedTbl): SubmittedTbl is
+  var s: SubmittedEntry, t2: SubmittedTbl in
+  case t in
+    {}                 -> return {}
+    | Insert_C(s, t2)  -> if id(s) == id then return t2
+                          else return Insert_C(s2, Remove(s, t2))
+                          end if
+  end case
+  end var
+end function
+
+function Get(id: Id, t: SubmittedTbl): SubmittedEntry is
+  var s: SubmittedEntry, t2: SubmittedTbl in
+  case t in
+    {}                 -> raise error
+    | Insert_C(s, t2)  -> if id(s) == id then return s
+                          else return Get(s, t2)
+                          end if
+  end case
+  end var
+end function
+
+function IsIn(id: Id, t: SubmittedTbl): Bool is
+  var s: SubmittedEntry, t2: SubmittedTbl in
+  case t in
+    {}                 -> return false
+    | Insert_C(s, t2)  -> if id(s) == id then return true
+                          else return IsIn(s, t2)
+                          end if
+  end case
+  end var
+end function
+
+function NotIn(id: Id, t: SubmittedTbl): Bool is
+  return not IsIn(id, t)
+end function
+
+
+function Test(s: SubmittedEntry, t: SubmittedTbl): Bool is
+  var s2: SubmittedEntry, t2: SubmittedTbl in
+  case t in
+    {}                 -> return false
+    | Insert_C(s2, t2) -> if s2 == s then return true
+                          else if id(s) == id(s2) then return false
+                               else return Test(s, t2)
+                               end if
+                          end if
+  end case
+  end var
+end function
+
+
+function Includes(t1, t2: SubmittedTbl): Bool is
+  var s: SubmittedEntry, t3: SubmittedTbl in
+  case t2 in
+    {}                -> return true
+    | Insert_C(s, t3) -> return (Test(s, t1) and Includes(t1, t3))
+  end case
+  end var
+end function
+
+
+function IsSubTableOf(t1, t2: SubmittedTbl): Bool is
+  return Includes(t2,t1)
+end function
+
+function Over(t1, t2: SubmittedTbl): SubmittedTbl is
+  var s: SubmittedEntry, t3: SubmittedTbl in
+  case t1 in
+    {}                -> return t2
+    | Insert_C(s, t3) -> return Insert(s, Over(t3,t2))
+  end case
+  end var
+end function
+
+function Card(t: SubmittedTbl): Nat is
+  var s: SubmittedEntry, t2: SubmittedTbl in
+  case t in
+    {}                -> return 0
+    | Insert_C(s, t2) -> return 1 + Card(t2)
+  end case
+  end var
+end function
+
+
+(**********************************)
+
+type GrpSubmittedEntry is 
+  submitted(id:Id, r:Request, b:BaseId, id2:Id)
+  with ==, <>
+end type
+
+function id(s: GrpSubmittedEntry): Id is 
+  var id:Id, r:Request, b:BaseId, id2:Id in:
+  case s in
+    submitted(id, r, b, id2) -> return id
+  end case
+  end var
+end function
+
+function req(s: GrpSubmittedEntry): Request is 
+  var id:Id, r:Request, b:BaseId, id2:Id in:
+  case s in
+    submitted(id, r, b, id2) -> return r
+  end case
+  end var
+end function
+
+function sender(s: GrpSubmittedEntry): BaseId is 
+  var id:Id, r:Request, b:BaseId, id2:Id in:
+  case s in
+    submitted(id, r, b, id2) -> return b
+  end case
+  end var
+end function
+
+function senderid(s: GrpSubmittedEntry): Id is 
+  var id:Id, r:Request, b:BaseId, id2:Id in:
+  case s in
+    submitted(id, r, b, id2) -> return id2
+  end case
+  end var
+end function
+
+function Set_id(id:Id, s: GrpSubmittedEntry): GrpSubmittedEntry is 
+  var id2:Id, r:Request, b:BaseId, id3:Id in:
+  case s in
+    submitted(id2, r, b, id3) -> return submitted(id, r, b, id3)
+  end case
+  end var
+end function
+
+function Set_req(req:Request, s: GrpSubmittedEntry): GrpSubmittedEntry is 
+  var id:Id, r:Request, b:BaseId, id2:Id in:
+  case s in
+    submitted(id, r, b, id2) -> return submitted(id, req, b, id2)
+  end case
+  end var
+end function
+
+function Set_sender(b:BaseId, s: GrpSubmittedEntry): GrpSubmittedEntry is 
+  var id:Id, r:Request, b2:BaseId, id2:Id in:
+  case s in
+    submitted(id, r, b2, id2) -> return submitted(id, r, b, id2)
+  end case
+  end var
+end function
+
+function Set_senderid(id:Id, s: GrpSubmittedEntry): GrpSubmittedEntry is 
+  var id2:Id, r:Request, b:BaseId, id3:Id in:
+  case s in
+    submitted(id2, r, b, id3) -> return submitted(id2, r, b, id)
+  end case
+  end var
+end function
+
+
+(**********************************)
+
+type GrpSubmittedTbl is
+  {},
+  Insert_C(s: GrpSubmittedEntry, t: GrpSubmittedTbl)
+  with ==, <>
+end type
+
+function Insert(s: GrpSubmittedEntry, t: GrpSubmittedTbl): GrpSubmittedTbl is
+  var s2: GrpSubmittedEntry, t2: GrpSubmittedTbl in
+  case t in
+    {}                 -> return Insert_C(s, {})
+    | Insert_C(s2, t2) -> if id(s2) == id(s) then return Insert_C(s,t2)
+                          else return Insert_C(s2, Insert(s, t2))
+                          end if
+  end case
+  end var
+end function
+
+function Remove(id: Id, t: GrpSubmittedTbl): GrpSubmittedTbl is
+  var s: GrpSubmittedEntry, t2: GrpSubmittedTbl in
+  case t in
+    {}                 -> return {}
+    | Insert_C(s, t2) -> if id == id(s) then return t2
+                         else return Insert_C(s2, Remove(id, t2))
+                         end if
+  end case
+  end var
+end function
+
+function Get(id: Id, t: GrpSubmittedTbl): GrpSubmittedEntry is
+  var s: GrpSubmittedEntry, t2: GrpSubmittedTbl in
+  case t in
+    {}                 -> raise error
+    | Insert_C(s, t2) -> if id == id(s) then return s
+                         else return Get(id, t2)
+                         end if
+  end case
+  end var
+end function
+
+function IsIn(id: Id, t: GrpSubmittedTbl): Bool is
+  var s: GrpSubmittedEntry, t2: GrpSubmittedTbl in
+  case t in
+    {}                 -> return false
+    | Insert_C(s, t2) -> if id == id(s) then return true
+                         else return IsIn(id, t2)
+                         end if
+  end case
+  end var
+end function
+
+function NotIn(id: Id, t: GrpSubmittedTbl): Bool is
+  return not IsIn(id, t)
+end function
+
+
+function Test(s: GrpSubmittedEntry, t: GrpSubmittedTbl): Bool is
+  var s2: GrpSubmittedEntry, t2: GrpSubmittedTbl in
+  case t in
+    {}                 -> return false
+    | Insert_C(s2, t2) -> if s2 == s then return true
+                          else if id(s) == id(s2) then return false
+                               else return Test(s, t2)
+                               end if
+                          end if
+  end case
+  end var
+end function
+
+
+function Includes(t1, t2: GrpSubmittedTbl): Bool is
+  var s: GrpSubmittedEntry, t3: GrpSubmittedTbl in
+  case t2 in
+    {}                -> return true
+    | Insert_C(s, t3) -> return (Test(s, t1) and Includes(t1, t3))
+  end case
+  end var
+end function
+
+
+function IsSubTableOf(t1, t2: GrpSubmittedTbl): Bool is
+  return Includes(t2,t1)
+end function
+
+function Over(t1, t2: GrpSubmittedTbl): GrpSubmittedTbl is
+  var s: GrpSubmittedEntry, t3: GrpSubmittedTbl in
+  case t1 in
+    {}                -> return t2
+    | Insert_C(s, t3) -> return Insert(s, Over(t3,t2))
+  end case
+  end var
+end function
+
+function Card(t: GrpSubmittedTbl): Nat is
+  var s: GrpSubmittedEntry, t2: GrpSubmittedTbl in
+  case t in
+    {}                -> return 0
+    | Insert_C(s, t2) -> return 1 + Card(t2)
+  end case
+  end var
+end function
+
+
+(**********************************)
+
+type Status is
+  new,
+  accepted,
+  rejected,
+  challenged
+  with ==, <>
+end type
+
+function First: Status is
+  return new
+end function
+
+function Challenged: Status is
+  return challenged
+end function
+
+function Succ(s:Status):Status is
+  case s in
+    new          -> return accepted
+    | accepted   -> return rejected
+    | rejected   -> return challenged
+    | challenged -> raise error
+  end case
+end function
+
+function Pred(s:Status):Status is
+  case s in
+    new          -> raise error
+    | accepted   -> return new
+    | rejected   -> return accepted
+    | challenged -> return rejected
+  end case
+end function
+
+function is_new(s:Status):Bool is
+  case s in
+    new          -> return true
+    | accepted   -> return false
+    | rejected   -> return false
+    | challenged -> return false
+  end case
+end function
+
+function is_accepted(s:Status):Bool is
+  case s in
+    new          -> return false
+    | accepted   -> return true
+    | rejected   -> return false
+    | challenged -> return false
+  end case
+end function
+
+function is_rejected(s:Status):Bool is
+  case s in
+    new          -> return false
+    | accepted   -> return false
+    | rejected   -> return true
+    | challenged -> return false
+  end case
+end function
+
+function is_challenged(s:Status):Bool is
+  case s in
+    new          -> return false
+    | accepted   -> return false
+    | rejected   -> return false
+    | challenged -> return true
+  end case
+end function
+
+
+(**********************************)
+
+type PendingEntry is
+  pending(id:Id, r:Request, s:Status)
+  with ==, <>
+end type
+
+function id(s: PendingEntry): Id is 
+  var id:Id, r:Request, s:Status  in:
+  case s in
+    pending(id, r, s) -> return id
+  end case
+  end var
+end function
+
+function req(s: PendingEntry): Request is 
+  var id:Id, r:Request, s:Status  in:
+  case s in
+    pending(id, r, s) -> return r
+  end case
+  end var
+end function
+
+function status(s: PendingEntry): Status is 
+  var id:Id, r:Request, s:Status  in:
+  case s in
+    pending(id, r, s) -> return s
+  end case
+  end var
+end function
+
+function Set_id(id:Id, s: PendingEntry): PendingEntry is 
+  var id:Id, r:Request, s:Status  in:
+  case s in
+    pending(id2, r, s) -> return pending(id, r, s)
+  end case
+  end var
+end function
+
+function Set_req(req:Request, s: PendingEntry): PendingEntry is 
+  var id:Id, r:Request, s:Status  in:
+  case s in
+    pending(id, r, s) -> return pending(id, req, s)
+  end case
+  end var
+end function
+
+function Set_status(s:Status, s: PendingEntry): PendingEntry is 
+  var id:Id, r:Request, s2:Status  in:
+  case s in
+    pending(id, r, s2) -> return pending(id, req, s)
+  end case
+  end var
+end function
+
+
+(**********************************)
+
+type PendingTbl is
+  {},
+  Insert_C(s: PendingEntry, t: PendingTbl)
+  with ==, <>
+end type
+
+function Insert(s: PendingEntry, t: PendingTbl): PendingTbl is
+  var s2: PendingEntry, t2: PendingTbl in
+  case t in
+    {}                 -> return Insert_C(s, {})
+    | Insert_C(s2, t2) -> if id(s2) == id(s) then return Insert_C(s,t2)
+                          else return Insert_C(s2, Insert(s, t2))
+                          end if
+  end case
+  end var
+end function
+
+function Remove(id: Id, t: PendingTbl): PendingTbl is
+  var s: PendingEntry, t2: PendingTbl in
+  case t in
+    {}                -> return {}
+    | Insert_C(s, t2) -> if id(s) == id then return t2
+                         else return Insert_C(s2, Remove(s, t2))
+                         end if
+  end case
+  end var
+end function
+
+function Get(id: Id, t: PendingTbl): PendingEntry is
+  var s: PendingEntry, t2: PendingTbl in
+  case t in
+    {}                -> raise error
+    | Insert_C(s, t2) -> if id(s) == id then return s
+                         else return Get(s, t2)
+                         end if
+  end case
+  end var
+end function
+
+function IsIn(id: Id, t: PendingTbl): Bool is
+  var s: PendingEntry, t2: PendingTbl in
+  case t in
+    {}                -> return false
+    | Insert_C(s, t2) -> if id(s) == id then return true
+                         else return IsIn(s, t2)
+                         end if
+  end case
+  end var
+end function
+
+function NotIn(id: Id, t: PendingTbl): Bool is
+  return not IsIn(id, t)
+end function
+
+
+function Test(s: SubmittedEntry, t: PendingTbl): Bool is
+  var s2: PendingEntry, t2: PendingTbl in
+  case t in
+    {}                 -> return false
+    | Insert_C(s2, t2) -> if s2 == s then return true
+                          else if id(s) == id(s2) then return false
+                               else return Test(s, t2)
+                               end if
+                          end if
+  end case
+  end var
+end function
+
+
+function Includes(t1, t2: PendingTbl): Bool is
+  var s: PendingEntry, t3: PendingTbl in
+  case t2 in
+    {}                -> return true
+    | Insert_C(s, t3) -> return (Test(s, t1) and Includes(t1, t3))
+  end case
+  end var
+end function
+
+
+function IsSubTableOf(t1, t2: PendingTbl): Bool is
+  return Includes(t2,t1)
+end function
+
+function Over(t1, t2: PendingTbl): PendingTbl is
+  var s: PendingEntry, t3: PendingTbl in
+  case t1 in
+    {}                -> return t2
+    | Insert_C(s, t3) -> return Insert(s, Over(t3,t2))
+  end case
+  end var
+end function
+
+function Card(t: PendingTbl): Nat is
+  var s: PendingEntry, t2: PendingTbl in
+  case t in
+    {}                -> return 0
+    | Insert_C(s, t2) -> return 1 + Card(t2)
+  end case
+  end var
+end function
+
+function searchproposal(p:Proposal, t: PendingTbl): Bool is
+  var s: PendingEntry, t2: PendingTbl in
+  case t in
+    {}                -> return false
+    | Insert_C(s, t2) -> if (is_reqachieve(s) and content(req(s)) == p ) then
+                           return true
+                         else
+                           return searchproposal(p,t2)
+                         end if
+  end case
+  end var
+end function
+
+function getproposal(p:Proposal, t: PendingTbl): PendingEntry is
+  var s: PendingEntry, t2: PendingTbl in
+  case t in
+    {}                -> raise error
+    | Insert_C(s, t2) -> if (is_reqachieve(s) and content(req(s)) == p ) then
+                           return s
+                         else
+                           return getproposal(p,t2)
+                         end if
+  end case
+  end var
+end function
+
+
+(**********************************)
+
+type SubscriberSet is
+  {},
+  Insert_C(b:BaseId, s:SubscriberSet)
+  with ==,<>
+end type
+
+
+function Insert (a : BaseId, K : SubscriberSet) : SubscriberSet is
+  var Kbis : SubscriberSet, x : BaseId in
+  case K in
+    {}                  -> return Insert_C (a,{})
+    | Insert_C (x,Kbis) -> if a == x  then return K
+                           else return Insert_C (x, Insert (a,Kbis))
+                           end if
+  end case
+  end var
+end function
+
+function Remove (a : BaseId, K : SubscriberSet) : SubscriberSet is
+  var Kbis : SubscriberSet, x : BaseId in
+  case K in
+    {}                  -> return {}
+    | Insert_C (x,Kbis) -> if a == x  then return Kbis
+                           else return Insert_C (x, Remove (a,Kbis))
+                           end if
+  end case
+  end var
+end function
+
+function IsIn (a : BaseId, K : SubscriberSet) : Bool is
+  var Kbis : SubscriberSet, x : BaseId in
+  case K in
+    {}                  -> return false
+    | Insert_C (x,Kbis) -> if a == x  then return true
+                           else return IsIn(a,Kbis)
+                           end if
+  end case
+  end var
+end function
+
+function NotIn (a : BaseId, K : SubscriberSet) : Bool is
+   return not IsIn(a,K)
+end function
+
+function Union (K1,K2 : SubscriberSet) : SubscriberSet is
+  var Kbis : SubscriberSet, x : BaseId in
+  case K1 in
+    {}                  -> return K2
+    | Insert_C (x,Kbis) -> return Union(Kbis, Insert_C (x, K2))
+  end case
+  end var
+end function
+
+function Ints (K1,K2 : SubscriberSet) : SubscriberSet is
+  var Kbis : SubscriberSet, x : BaseId in
+  case K1 in
+    {}                  -> return {}
+    | Insert_C (x,Kbis) -> if IsIn(x,K2) then return Insert_C (x, Ints(Kbis,K2))
+                           else return Ints(Kbis,K2)
+                           end if
+  end case
+  end var
+end function
+
+function Minus (K1,K2 : SubscriberSet) : SubscriberSet is
+  var Kbis : SubscriberSet, x : BaseId in
+  case K2 in
+    {}                  -> return K1
+    | Insert_C (x,Kbis) -> return Minus(Remove(x,K1), Kbis)
+  end case
+  end var
+end function
+
+function Includes (K1,K2 : SubscriberSet) : Bool is
+  var Kbis : SubscriberSet, x : BaseId in
+  case K2 in
+    {}                  -> return true
+    | Insert_C (x,Kbis) -> return IsIn(x,K) and Includes(K1, Kbis)
+  end case
+  end var
+end function
+
+function IsSubsetOf (K1,K2 : SubscriberSet) : Bool is
+   return Includes(K2,K1)
+end function
+
+function Card(K:SubscriberSet) : Nat is
+  var Kbis : SubscriberSet, x : BaseId in
+  case K in
+    {}                  -> return 0
+    | Insert_C (x,Kbis) -> return 1 + Card(Kbis)
+  end case
+  end var
+end function
+
+function pick(s: SubscriberSet): BaseId is
+  var s2 : SubscriberSet, b : BaseId in
+  case K in
+    {}                -> raise errorEmpty
+    | Insert_C (b,s2) -> return b
+  end case
+  end var
+end function
+
+(**********************************)
+
+type CfcEntry is
+  cfc(id:Id, b:BaseId, id2: Id, req: Request, val:Nat)
+  with ==, <>
+end type
+
+function id(c: CfcEntry): Id is
+  var id:Id, b:BaseId, id2: Id, req: Request, val:Nat in
+  case c in
+    cfc(id, b, id2, req, val) -> return id
+  end case
+  end var
+end function
+
+function sender(c: CfcEntry): BaseId is
+  var id:Id, b:BaseId, id2: Id, req: Request, val:Nat in
+  case c in
+    cfc(id, b, id2, req, val) -> return b
+  end case
+  end var
+end function
+
+function senderid(c: CfcEntry): Id is
+  var id:Id, b:BaseId, id2: Id, req: Request, val:Nat in
+  case c in
+    cfc(id, b, id2, req, val) -> return id2
+  end case
+  end var
+end function
+
+function req(c: CfcEntry): Request is
+  var id:Id, b:BaseId, id2: Id, req: Request, val:Nat in
+  case c in
+    cfc(id, b, id2, req, val) -> return req
+  end case
+  end var
+end function
+
+function count(c: CfcEntry): Nat is
+  var id:Id, b:BaseId, id2: Id, req: Request, val:Nat in
+  case c in
+    cfc(id, b, id2, req, val) -> return val
+  end case
+  end var
+end function
+
+function set_id(idToSet: Id, c: CfcEntry): CfcEntry is
+  var id:Id, b:BaseId, id2: Id, req: Request, val:Nat in
+  case c in
+    cfc(id, b, id2, req, val) -> return cfc(idToSet, b, id2, req, val)
+  end case
+  end var
+end function
+
+function Set_sender(sender: BaseId, c: CfcEntry): CfcEntry is
+  var id:Id, b:BaseId, id2: Id, req: Request, val:Nat in
+  case c in
+    cfc(id, b, id2, req, val) -> return cfc(idToSet, sender, id2, req, val)
+  end case
+  end var
+end function
+
+function Set_senderid(senderid: Id, c: CfcEntry): CfcEntry is
+  var id:Id, b:BaseId, id2: Id, req: Request, val:Nat in
+  case c in
+    cfc(id, b, id2, req, val) -> return cfc(idToSet, b, senderid, req, val)
+  end case
+  end var
+end function
+
+function Set_req(reqToSet: Request, c: CfcEntry): CfcEntry is
+  var id:Id, b:BaseId, id2: Id, req: Request, val:Nat in
+  case c in
+    cfc(id, b, id2, req, val) -> return cfc(idToSet, b, id2, reqToSet, val)
+  end case
+  end var
+end function
+
+function Set_count(count: Nat, c: CfcEntry): CfcEntry is
+  var id:Id, b:BaseId, id2: Id, req: Request, val:Nat in
+  case c in
+    cfc(id, b, id2, req, val) -> return cfc(idToSet, b, id2, req, count)
+  end case
+  end var
+end function
+
+
+(**********************************)
+
+
+type CfcTbl is
+  {},
+  Insert_C(s: CfcEntry, t: CfcTbl)
+  with ==, <>
+end type
+
+function Insert(s: CfcEntry, t: CfcTbl): CfcTbl is
+  var s2: CfcEntry, t2: CfcTbl in
+  case t in
+    {}                 -> return Insert_C(s, {})
+    | Insert_C(s2, t2) -> if id(s2) == id(s) then return Insert_C(s,t2)
+                          else return Insert_C(s2, Insert(s, t2))
+                          end if
+  end case
+  end var
+end function
+
+function Remove(id: Id, t: CfcTbl): CfcTbl is
+  var s: CfcEntry, t2: CfcTbl in
+  case t in
+    {}                 -> return {}
+    | Insert_C(s, t2) -> if id == id(s) then return t2
+                         else return Insert_C(s2, Remove(id, t2))
+                         end if
+  end case
+  end var
+end function
+
+function Get(id: Id, t: CfcTbl): CfcEntry is
+  var s: CfcEntry, t2: CfcTbl in
+  case t in
+    {}                 -> raise error
+    | Insert_C(s, t2) -> if id == id(s) then return s
+                         else return Get(id, t2)
+                         end if
+  end case
+  end var
+end function
+
+function IsIn(id: Id, t: CfcTbl): Bool is
+  var s: CfcEntry, t2: CfcTbl in
+  case t in
+    {}                 -> return false
+    | Insert_C(s, t2) -> if id == id(s) then return true
+                         else return IsIn(id, t2)
+                         end if
+  end case
+  end var
+end function
+
+function NotIn(id: Id, t: CfcTbl): Bool is
+  return not IsIn(id, t)
+end function
+
+
+function Test(s: CfcEntry, t: CfcTbl): Bool is
+  var s2: CfcEntry, t2: CfcTbl in
+  case t in
+    {}                 -> return false
+    | Insert_C(s2, t2) -> if s2 == s then return true
+                          else if id(s) == id(s2) then return false
+                               else return Test(s, t2)
+                               end if
+                          end if
+  end case
+  end var
+end function
+
+
+function Includes(t1, t2: CfcTbl): Bool is
+  var s: CfcEntry, t3: CfcTbl in
+  case t2 in
+    {}                -> return true
+    | Insert_C(s, t3) -> return (Test(s, t1) and Includes(t1, t3))
+  end case
+  end var
+end function
+
+
+function IsSubTableOf(t1, t2: CfcTbl): Bool is
+  return Includes(t2,t1)
+end function
+
+function Over(t1, t2: CfcTbl): CfcTbl is
+  var s: CfcEntry, t3: CfcTbl in
+  case t1 in
+    {}                -> return t2
+    | Insert_C(s, t3) -> return Insert(s, Over(t3,t2))
+  end case
+  end var
+end function
+
+function Card(t: CfcTbl): Nat is
+  var s: CfcEntry, t2: CfcTbl in
+  case t in
+    {}                -> return 0
+    | Insert_C(s, t2) -> return 1 + Card(t2)
+  end case
+  end var
+end function
+
+function pick(t: CfcTbl): CfcEntry is
+  var s: CfcEntry, t2: CfcTbl in
+  case t in
+    {}                -> raise error
+    | Insert_C(s, t2) -> return s
+  end case
+  end var
+end function
+
+function searchrequest(b:BaseId, id:Id, t: CfcTbl): Bool is
+  var s: CfcEntry, t2: CfcTbl in
+  case t in
+    {}                -> return false
+    | Insert_C(s, t2) -> if (sender(s) == b and senderid(s) == id) then
+                           return true
+                         else 
+                           return searchrequest(b, id, t2)
+                         end if
+  end case
+  end var
+end function
+
+function getrequest(b:BaseId, id:Id, t: CfcTbl): CfcEntry is
+  var s: CfcEntry, t2: CfcTbl in
+  case t in
+    {}                -> raise error
+    | Insert_C(s, t2) -> if (sender(s) == b and senderid(s) == id) then
+                           return s
+                         else 
+                           return getrequest(b, id, t2)
+                         end if
+  end case
+  end var
+end function
+
+function incallcount(t: CfcTbl): CfcTbl is
+  var s: CfcEntry, t2: CfcTbl in
+  case t in
+    {}                -> return {}
+    | Insert_C(s, t2) -> return insert(set_count(succ(count(s)),s), incallcount(t2))
+  end case
+  end var
+end function
+
+
+(**********************************)
+
+type ParentBase is 
+  Some(b:BaseId),
+  None
+  with ==, <>
+end type
+
+function isSome(p:ParentBase): Bool is
+  var b:BaseId in
+  case p in
+    Some(b) -> return true
+    | None  -> return false
+  end case
+  end var
+end function
+
+function isNone(p:ParentBase): Bool is
+  var b:BaseId in
+  case p in
+    Some(b) -> return false
+    | None  -> return true
+  end case
+  end var
+end function
+
+function OrElse(p:ParentBase, else:BaseId): BaseId is
+  var b:BaseId in
+  case p in
+    Some(b) -> return b
+    | None  -> return else
+  end case
+  end var
+end function
+
+function the(p:ParentBase): BaseId is
+  var b:BaseId in
+  case p in
+    Some(b) -> return b
+    | None  -> raise error
+  end case
+  end var
+end function
+
+(**********************************)
+
+-- There should be some cosntants about nats here
+-- I'm not sure if they are useful in lnt
+
+function pred(n:Nat): Nat is
+  if(n==0) then raise error
+  else return n-1
+  end if
+end function
+
+(**********************************)
+
+type Packet is
+  packet(b1: BaseId, b2:BaseId, m:Message)
+  with ==, <>
+end type
+
+function sender(p:Packet): BaseId is
+  var b1:BaseId, b2:BaseId, m:Message in
+  case p in
+    packet(b1, b2, m) -> return b1
+  end case
+  end var
+end function
+
+function receiver(p:Packet): BaseId is
+  var b1:BaseId, b2:BaseId, m:Message in
+  case p in
+    packet(b1, b2, m) -> return b2
+  end case
+  end var
+end function
+
+function message(p:Packet): Message is
+  var b1:BaseId, b2:BaseId, m:Message in
+  case p in
+    packet(b1, b2, m) -> return m
+  end case
+  end var
+end function
+
+function set_sender(sender: BaseId, p:Packet): Packet is
+  var b1:BaseId, b2:BaseId, m:Message in
+  case p in
+    packet(b1, b2, m) -> return packet(sender, b2, m)
+  end case
+  end var
+end function
+
+function Set_receiver(receiver: BaseId, p:Packet): Packet is
+  var b1:BaseId, b2:BaseId, m:Message in
+  case p in
+    packet(b1, b2, m) -> return packet(b1, receiver, m)
+  end case
+  end var
+end function
+
+function Set_message(mess: BaseId, p:Packet): Packet is
+  var b1:BaseId, b2:BaseId, m:Message in
+  case p in
+    packet(b1, b2, m) -> return packet(b1, b2, mess)
+  end case
+  end var
+end function
+
+
+(**********************************)
+
+type PacketQueue is
+  <>,
+  +(p:packet, q:PacketQueue)
+  with ==, <>
+end type
+
+function String(p:Packet):PacketQueue is
+  return x + <>
+end function
+
+function +(queue:PacketQueue, toAdd:Packet):PacketQueue is
+  var p:Packet, q:PacketQueue in
+  case queue in
+    <>        -> return toAdd + <>
+    | +(p, q) -> return p + (q + toAdd)
+  end case
+  end var
+end function
+
+function +(p1,p2:Packet):PacketQueue is
+  return p1 + (p2 + <>)
+end function
+
+function ++(queue1,queue2:PacketQueue):PacketQueue is
+  var p:Packet, q:PacketQueue in
+  case queue1 in
+    <>        -> return queue2
+    | +(p, q) -> return p + (q ++ queue2)
+  end case
+  end var
+end function
+
+function Reverse(queue:PacketQueue):PacketQueue is
+  var p:Packet, q:PacketQueue in
+  case queue in
+    <>        -> return <>
+    | +(p, q) -> return Reverse(q) + p
+  end case
+  end var
+end function
+
+function Length(queue:PacketQueue):Nat is
+  var p:Packet, q:PacketQueue in
+  case queue in
+    <>        -> return 0
+    | +(p, q) -> return 1 + Length(q)
+  end case
+  end var
+end function
+
+function First(queue:PacketQueue):Packet is
+  var p:Packet, q:PacketQueue in
+  case queue in
+    <>        -> raise error
+    | +(p, q) -> return p
+  end case
+  end var
+end function
+
+function Last(queue:PacketQueue):Packet is
+  var p:Packet, q:PacketQueue in
+  case queue in
+    <>        -> raise error
+    | +(p, q) -> if Length(q) == 0 then
+                   return p
+                 else
+                   return Last(q)
+                 end if
+  end case
+  end var
+end function
+
+function ButFirst(queue:PacketQueue):PacketQueue is
+  var p:Packet, q:PacketQueue in
+  case queue in
+    <>        -> raise error
+    | +(p, q) -> return q
+  end case
+  end var
+end function
+
+function ButLast(queue:PacketQueue):PacketQueue is
+  var p:Packet, q:PacketQueue in
+  case queue in
+    <>        -> raise error
+    | +(p, q) -> if Length(q) == 0 then
+                   return <>
+                 else
+                   return p + Last(q)
+                 end if
+  end case
+  end var
+end function
+
+function nth(queue:PacketQueue, pos:Nat):PacketQueue is
+  var p:Packet, q:PacketQueue in
+  case queue in
+    <>        -> raise error
+    | +(p, q) -> if pos == 0 then
+                   return p
+                 else
+                   return nth(q, pos-1)
+                 end if
+  end case
+  end var
+end function
+
+function substr(queue:PacketQueue, start,length:Nat):PacketQueue is
+  var p:Packet, q:PacketQueue in
+  case queue in
+    <>        -> if (start == 0 and length == 0) then return <>
+                 else raise error
+                 end if
+    | +(p, q) -> if start == 0 then
+                   if length == 0 then
+                     return <>
+                   else
+                     return p + substr(q, 0, length-1)
+                 else
+                   return substr(q, start-1, length)
+                 end if
+  end case
+  end var
+end function
+
+function Remove(toRemove: Packet, queue:PacketQueue):PacketQueue is
+  var p:Packet, q:PacketQueue in
+  case queue in
+    <>        -> return <>
+    | +(p, q) -> if toRemove == p  then
+                   return Remove(toRemove, q)
+                 else
+                   return p + Remove(toRemove, q)
+                 end if
+  end case
+  end var
+end function
+
+function IsIn(toFind: Packet, queue:PacketQueue):Bool is
+  var p:Packet, q:PacketQueue in
+  case queue in
+    <>        -> return false
+    | +(p, q) -> if toFind == p  then
+                   return true
+                 else
+                   return IsIn(toFind, q)
+                 end if
+  end case
+  end var
+end function
+
+function NotIn(toFind: Packet, queue:PacketQueue):Bool is
+  return not(IsIn(toFind, queue))
+end function
+
+function IsPrefixOf(queue1,queue2:PacketQueue):Bool is
+  var p:Packet, q:PacketQueue in
+  case queue1 in
+    <>        -> return true
+    | +(p, q) -> var p2:Packet, q2:PacketQueue in
+                 case queue2 in
+                   <>         -> return false
+                   | +(p2,q2) -> if p == p2 then
+                                   return IsPrefixOf(q,q2)
+                                 else
+                                   return false
+                                 end if
+                 end case
+                 end var
+  end case
+  end var
+end function
+
+function IsSuffixOf(queue1,queue2:PacketQueue):Bool is
+  return Reverse(queue1) isPrefixOf Reverse(Queue2)
+end function
+
+function Includes(queue1,queue2:PacketQueue):Bool is
+  var p2:Packet, q2:PacketQueue in
+  case queue2 in
+    <>        -> return true
+    | +(p2, q2) -> var p:Packet, q:PacketQueue in
+                   case queue1 in
+                     <>         -> return false
+                     | +(p,q) -> if isPrefixOf(queue2, queue1) then
+                                   return true
+                                 else
+                                   return Includes(q, queue2)
+                                 end if 
+                   end case
+                   end var
+  end case
+  end var
+end function
+
+function isSubStrOf(queue1,queue2:PacketQueue):Bool is
+  return queue2 Includes queue1
+end function
+
+
+end module

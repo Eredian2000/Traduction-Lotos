@@ -1,0 +1,98 @@
+module co4-1-2(co4_DATATYPES, co4_PROCESSES) is
+
+process MAIN [user:MessageChannel,
+            up1,down1,up2,down2:UserActionChannel,
+            signal:SignalValChannel,
+            OK:none] is
+   
+   par user in
+   
+      disrupt UserInput[user] by null end disrupt
+      
+      ||
+      
+      KBHierarchy [user,up1,down1,up2,down2,signal]
+   
+   end par
+   Ring[OK]
+   
+end process
+
+process KBHierarchy[user:MessageChannel,
+            up1,down1,up2,down2:UserActionChannel,
+            signal:SignalValChannel] is
+   
+   par up1, down1 in
+   
+      InitIndividualKB [user,down1,up1,signal] (base1)
+      
+      ||
+      
+      hide up:MessageChannel in
+         par up in
+         
+            InitQueue[up1,up]
+            
+            ||
+            
+            InitGroupKB [up,down1,down2,up2,signal] (base3)
+            
+         end par
+      end hide
+      
+   end par
+end process
+
+process UserInput [user:UserActionChannel] is
+   par
+   
+      user(base1, doregister, base3);
+      user(base1, doachieve, assert(white) + <>);
+      user(base1, doachieve, assert(black) + <>);
+      stop
+      
+      ||
+      
+      AllUserReply[user]
+      
+   end par
+   
+end process
+
+process AllUserReply [user] is
+   loop 
+      var b1:BaseId, r1:Request in
+      select
+         
+         user(?b1, doaccept ,?r1)
+         
+         []
+         
+         user(?b1, doreject ,?r1)
+         
+         []
+         
+         user(?b1, dodeny ,?r1)
+         
+      end select
+      end var
+   end loop
+end process
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+end module

@@ -1,0 +1,146 @@
+module co4-2-1(co4_DATATYPES, co4_PROCESSES) is
+
+process MAIN [user:MessageChannel,
+            up1,down1,up2,down2:UserActionChannel,
+            signal:SignalValChannel,
+            OK:none] is
+   
+   par user in
+   
+      disrupt UserInput[user] by null end disrupt
+      
+      ||
+      
+      KBHierarchy [user,up1,down1,up2,down2,signal]
+   
+   end par
+   Ring[OK]
+   
+end process
+
+process KBHierarchy[user:MessageChannel,
+            up1,down1,up2,down2:UserActionChannel,
+            signal:SignalValChannel] is
+   
+   par up1, down1 in
+      par user, up1, down1
+      
+         par
+            InitIndividualKB [user,down1,up1,signal] (base1)
+            ||
+            InitIndividualKB [user,down1,up1,signal] (base2)
+         end par
+         
+         ||
+         
+         SerializeIndividualKB [user,down1,up1]
+         
+      end par
+      ||
+      
+      hide up:MessageChannel in
+         par up in
+         
+            InitQueue[up1,up]
+            
+            ||
+            
+            InitGroupKB [up,down1,down2,up2,signal] (base3)
+            
+         end par
+      end hide
+      (* group has no parent *)
+   end par
+end process
+
+process SerializeIndividualKB [user:UserActionChannel,
+                              parentin,parentout:MessageChannel] is
+   loop L in
+      var b,b1,b2:BaseId, p1:Proposal, r1:Request, act:UserAction, msg:Message in
+      select
+         
+         break L
+         
+         []
+         
+         user(?b, ?act, ?b1);
+         parentout(b, ?b2, ?msg)
+         
+         []
+         
+         user(?b, ?act, ?p1);
+         parentout(b, ?b2, ?msg)
+         
+         []
+         
+         user(?b, ?act, ?r1);
+         parentout(b, ?b2, ?msg)
+         
+         []
+         
+         user(?b, ?act, ?r1, ?p1);
+         parentout(b, ?b2, ?msg)
+         
+         []
+         
+         parentin(?b1, ?b2, ?msg)
+         
+      end select
+      end var
+   end loop
+end process
+
+
+process UserInput [user:UserActionChannel] is
+   par
+   
+      user(base1, doregister, base3);
+      user(base2, doregister, base3);
+      user(base1, doachieve, assert(square) + <>);
+      stop
+      
+      ||
+      
+      AllUserReply[user]
+      
+   end par
+   
+end process
+
+process AllUserReply [user] is
+   loop 
+      var b1:BaseId, r1:Request in
+      select
+         
+         user(?b1, doaccept ,?r1)
+         
+         []
+         
+         user(?b1, doreject ,?r1)
+         
+         []
+         
+         user(?b1, dodeny ,?r1)
+         
+      end select
+      end var
+   end loop
+end process
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+end module

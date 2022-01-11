@@ -1,0 +1,1202 @@
+module CO4_PROCESSES is
+
+-- We have to define channels here, that were not present lotos
+
+-- For the time being we've seen three types that seems to be used for communication in the documentation
+
+
+
+channel MessageChannel is
+   (B1: BaseId, B2:BaseId, M:Message),
+   
+end channel
+
+
+
+channel UserActionChannel is
+ (To:BaseId, U:UserAction, x:BaseId),
+ (To:BaseId, U:UserAction, x:Proposal),
+ (To:BaseId, U:UserAction, x:Request),
+ (To:BaseId, U:UserAction, x:Request, y:Proposal)
+ 
+end channel
+
+
+
+channel SignalValChannel is
+ (Sender:BaseId, S:SignalVal, M:Message),
+ (Sender:BaseId, S:SignalVal, P:Proposal, B:Bool),
+ (Sender:BaseId, S:SignalVal, P:Proposal)
+end channel
+
+
+process InitIndividualKB [user:UserActionChannel, parentin:MessageChannel,
+        parentout:MessageChannel, signal:SignalValChannel] (B: BaseId) is
+   IndividualKB[user,parentin,parentout,signal]
+   (
+   B,
+   None of ParentBase,
+   {} of SubmittedTbl,
+   First of Id,
+   {} of PendingTbl
+   )
+end process
+
+process IdleIndividualKB [user:UserActionChannel, parentin:MessageChannel,
+        parentout:MessageChannel, signal:SignalValChannel] (B: BaseId, G:ParentBase) is
+   IndividualKB[user,parentin,parentout,signal]
+   (
+   B,
+   G,
+   {} of SubmittedTbl,
+   First of Id,
+   {} of PendingTbl
+   )
+end process
+
+process IndividualKB [user:UserActionChannel, parentin:MessageChannel,
+        parentout:MessageChannel, signal:SignalValChannel] 
+        (B: BaseId,
+        G:ParentBase
+        A: SubmittedTbl
+        NA: Id
+        P: PendingTbl) is
+   loop L in
+   select 
+   
+      if A == {} of SubmittedTbl then
+         if P == {} of PendingTbl then
+            break L
+         else stop
+         end if
+      else stop
+      end if
+      
+      []
+      
+      if G == None then
+         if A == {} of SubmittedTbl then
+            var b1:BaseId in
+            user(B, doregister, ?b1);
+            parentout(B, b1, register(NA,b1));
+            A:=insert(submitted(NA,reqregister(b1)),A);
+            NA:=next(NA)
+            end var
+         else stop
+         end if
+      else stop
+      end if
+      
+      []
+      
+      if issome(G) then
+         var p1:Proposal in
+         user(B, doevaluate, ?p1);
+         parentout(B, the(G), evaluate(NA,p1));
+         A:=insert(submitted(NA,reqevaluate(p1)),A);
+         NA:=next(NA)
+         end var
+      else stop
+      end if
+      
+      []
+      
+      if issome(G) then
+         var p1:Proposal in
+         user(B, doachieve, ?p1);
+         parentout(B, the(G), achieve(NA,p1));
+         A:=insert(submitted(NA,reqachieve(p1)),A);
+         NA:=next(NA)
+         end var
+      else stop
+      end if
+      
+      []
+      
+      if issome(G) then
+         var r1:Request in
+         user(B, doforward, ?r1);
+         parentout(B, the(G), forward(NA,r1));
+         A:=insert(submitted(NA,reqforward(r1)),A);
+         NA:=next(NA)
+         end var
+      else stop
+      end if
+      
+      []
+      
+      if issome(G) then
+         var m1:Id in
+         m1:= any Id;
+         if m1 isin A then
+            user(B, dodeny, req(get(m1,A)));
+            parentout(B,the(G),deny(m1));
+            A:=Remove(m1,A)
+         else stop
+         end if
+         end var
+      else stop
+      end if
+      
+      []
+      
+      if issome(G) then
+         var n1:Id in
+         n1:= any Id;
+         if n1 isin P then
+            if status(get(n1,P)) == new then
+               var r1:Request in
+                  r1:= req(get(n1,P));
+                  select
+                     
+                     user(B,doaccept,r1);
+                     parentout(B, the(G), reply(n1,acceptx));
+                     P:=insert(set_status(accepted, get(n1,P), P))
+                     
+                     []
+                     
+                     user(B,doreject,r1);
+                     parentout(B, the(G), reply(n1,reject));
+                     P:=insert(set_status(rejected, get(n1,P), P))
+                     
+                     []
+                     
+                     if is_reqachieve(r1) then
+                        (*** should apply to forward*(achieve(...)) too ***)
+                        var p1:Proposal in
+                        user(B, dochallenge, r1, ?p1);
+                        parentout(B, the(G), reply(n1,challenge(NA,p1));
+                        A:=insert(submitted(NA,reqchallenge(p1)),A);
+                        NA:=next(NA);
+                        P:=insert(set_status(challenged, get(n1,P), P))
+                        
+                        end var
+                     else stop
+                     end if
+                     
+                     
+                  endselect
+               end var
+            else stop
+            end if
+         else stop
+         end if
+         end var
+      else stop
+      end if
+      
+      []
+      
+      var from:BaseId, msg:Message in
+      parentin(?from, B, ?msg);
+      select
+         
+         if is_notify(msg) then
+            var m1:Id, a1:Answer in
+            m1:=inreplyto(msg);
+            a1:=content(msg);
+            select
+               if m1 isin A then
+                  select
+                     
+                     if is_reqregister(req(get(m1,A))) then
+                        if content(req(get(m1,A))) of BaseId == from then
+                           select
+                              
+                              if isnone(G) then
+                                 select
+                                    
+                                    if is_acceptx(a1) then
+                                       G:=some(from);
+                                       A:=Remove(m1,A)
+                                    else stop
+                                    end if
+                                    
+                                    []
+                                    
+                                    if not(is_acceptx(a1)) then
+                                       A:=Remove(m1,A)
+                                    else stop
+                                    end if
+                                    
+                                 end select
+                              else stop
+                              end if
+                              
+                              []
+                              
+                              if issome(G) then
+                                 A:=Remove(m1,A)
+                              else stop
+                              end if
+                              
+                           end select
+                        else stop
+                        end if
+                     else stop
+                     end if
+                     
+                     []
+                     
+                     if not(is_reqregister(req(get(m1,A)))) then
+                        A:=Remove(m1,A)
+                     else stop
+                     end if
+                     
+                  end select
+               else stop
+               end if
+               
+               []
+               
+               if m1 notin A then
+                  signal(B, signotinA, msg)
+               else stop
+               end if
+               
+            end select
+            end var
+         else stop
+         end if
+         
+         []
+         
+         if is_askall(msg) then
+            if G eq some(from) then
+               var n1:Id, r1:Request in
+               n1:=replywith(msg);
+               r1:=content(msg);
+               P:=insert(pending(n1,r1,new),P)
+               end var
+            else stop
+            end if
+         else stop
+         end if
+         
+         []
+         
+         if is_tell(msg) then
+            if G eq some(from) then
+               (*** handling of knowledge in user KB: unspecified ***)
+               null
+            else stop
+            end if
+         else stop
+         end if
+         
+         []
+         
+         if is_error(msg) then
+            if G eq some(from) then
+               var m1:Id in
+               m1:= inreplyto(msg);
+               select
+                  
+                  if m1 isin A then
+                     A:=Remove(m1,A)
+                  else stop
+                  end if
+                  
+                  []
+                  
+                  if m1 notin A then
+                     signal(B,signotinA,msg)
+                  else stop
+                  end if
+                  
+               end select
+               end var
+            else stop
+            end if
+         else stop
+         end if
+         
+         []
+         
+         if is_poolnotify(msg) then
+            if G eq some(from) then
+               var n1:Id in
+               n1:= inreplyto(msg);
+               select
+                  
+                  if n1 isin P then
+                     P:=Remove(n1,P)
+                  else stop
+                  end if
+                  
+                  []
+                  
+                  if n1 notin P then
+                     signal(B,signotinP,msg)
+                  else stop
+                  end if
+                  
+               end select
+               end var
+            else stop
+            end if
+         else stop
+         end if 
+         
+         []
+         
+         if is_pooldeny(msg) then
+            if G eq some(from) then
+               var n1:Id in
+               n1:= inreplyto(msg);
+               select
+                  
+                  if n1 isin P then
+                     P:=Remove(n1,P)
+                  else stop
+                  end if
+                  
+                  []
+                  
+                  if n1 notin P then
+                     signal(B,signotinP,msg)
+                  else stop
+                  end if
+                  
+               end select
+               end var
+            else stop
+            end if
+         else stop
+         end if 
+         
+         
+      end select
+      end var
+      
+   end select
+   end loop
+end process
+
+(***********************************************)
+-- Group KBs
+
+
+process InitGroupKB[childrenin,childrenout,parentin,parentout:MessageChannel, signal:SignalValChannel]
+                   (B:BaseId) is
+   GroupKB[childrenin, childrenout, parentin, parentout, signal]
+   (B,
+   none of ParentBase,
+   {} of GrpSubmittedTbl, First of Id,
+	{} of PendingTbl,
+	{} of CfcTbl, First of Id,
+	{} of SubscriberSet,
+	{} of Knowledge)
+end process
+
+process InitGroupKB[childrenin,childrenout,parentin,parentout:MessageChannel, signal:SignalValChannel]
+                   (B:BaseId, G:ParentBase, S:SubscriberSet) is
+   GroupKB[childrenin, childrenout, parentin, parentout, signal]
+   (B,
+   G,
+   {} of GrpSubmittedTbl, First of Id,
+	{} of PendingTbl,
+	{} of CfcTbl, First of Id,
+	S,
+	{} of Knowledge)
+end process
+
+process GroupKB[childrenin,childrenout,parentin,parentout:MessageChannel, signal:SignalValChannel]
+        ( B : BaseId,
+          G : Parentbase, 
+          A : GrpSubmittedTbl, NA : Id,
+          P : PendingTbl,
+          C : CfcTbl, NC : Id,
+          S : SubscriberSet,
+          K : Knowledge) is
+   loop L in
+   select
+   
+      if A == {} of SubmittedTbl then
+         if P == {} of PendingTbl then
+            break L
+         else stop
+         end if
+      else stop
+      end if
+      
+      []
+      
+      var from:BaseId, msg:Message in
+      childrenin(?from, B, ?msg);
+      select
+         
+         if is_register(msg) then
+            var b2:BaseId, m1:Id, req:Request in
+            b2:=content(msg);
+            m1:=replywith(msg);
+            req:=reqregister(b2);
+            if b2 == B then
+               select
+                  
+                  if S <> {} then
+                     Broadcast[childrenout] (B, askall(NC,req), S);
+                     C:=Insert(cfc(NC,from,m1,req,Card(S)),C);
+                     NC:=Next(NC)
+                  else stop
+                  end if
+                  
+                  []
+                  
+                  if S == {} then
+                     childrenout(B,from,notify(m1,acceptx));
+                     childrenout(B,from,tell(assert(K)));
+                     signal(B,sigregistered,from);
+                     S:=Insert(from,S);
+                  else stop
+                  end if
+                  
+                  
+               end select
+            else stop
+            end if
+            end var
+         else stop
+         end if
+         
+         []
+         
+         if is_evaluate(msg) then
+            var p1:Proposal, m1:Id in
+            p1:=content(msg);
+            m1:=replywith(msg);
+            childrenout(B,from,notify(m1,answer(query(K,p1))))
+            end var
+         else stop
+         end if
+         
+         []
+         
+         if is_achieve(msg) then
+            var p1:Proposal, m1:Id, req:Request in
+            p1:=content(msg);
+            m1:=replywith(msg);
+            req := reqachieve(p1);
+            select
+               
+               if query(K,p1) then
+                  Broadcast[childrenout] (B, askall(NC,req),S);
+                  C:=insert(cfc(NC,from,m1,req,card(S)),C);
+                  NC:=Next(NC)
+               else stop
+               end if
+               
+               []
+               
+               if not(query(K,p1)) then
+                  childrenout(B, from, error(m1))
+               else stop
+               end if
+               
+            endselect
+            end var
+         else stop
+         end if
+         
+         []
+         
+         if is_forward(msg) then
+            var p1:Proposal, m1:Id, req:Request in
+            p1:=content(msg);
+            m1:=replywith(msg);
+            req := reqachieve(p1);
+            select
+               
+               if issome(G) or (isnone(G) and is_reqregister(r1)) then
+                  Broadcast [childrenout] (B, askall(NC,req), S);
+                  C:=insert(cfc(NC,from,m1,req,card(S)),C);
+                  NC:=Next(NC)
+               else stop
+               end if
+               
+               []
+               
+               if isnone(G) and not (is_reqregister(r1)) then
+                  childrenout(B, from, error(m1))
+               else stop
+               end if
+            
+            end select
+            end var
+         
+         else stop
+         end if
+         
+         []
+         
+         if is_deny(msg) then
+            var m1:Id in
+            m1:= inreplyto(msg);
+            select
+               
+               if searchrequest(from,m1,C) then
+                  var n1:Id in
+                  n1:=id(getrequest(from,m1,C));
+                  Broadcast [childrenout] (B, pooldeny(n1), S);
+                  C:=Remove(n1,C);
+                  end var
+               else stop
+               end if
+               
+               []
+               
+               if not(searchrequest(from,m1,C)) then
+                  signal(B, signotinC, msg)
+               else stop
+               end if
+            end select
+            end var
+         else stop
+         end if
+         
+         []
+         
+         if is_reply(msg) then
+            var n1: Id, a1:Answer in
+            n1:=inreplyto(msg);
+            a1:=content(msg);
+            select
+               
+               if n1 isin C then
+                  var entry:CfcEntry, x1:Nat, r1:Request, b2:BaseId, m2:Id in
+                  entry:= get(n1,C);
+                  x1:= count(entry);
+                  r1:= req(entry);
+                  b2:= sender(entry);
+                  m2:=senderid(entry);
+                  select
+                     
+                     if is_acceptx(a1) then
+                        select
+                           
+                           if x1 == 1 then
+                              select
+                                 
+                                 if is_reqregister(r1) then
+                                    childrenout(B, b2, notify(m2, acceptx));
+                                    childrenout(B, b2, tell(assert(K)));
+                                    Broadcast [childrenout] (B, poolnotify(n1,acceptx), S);
+                                    EnumerateAskall [childrenout] (B, Remove(n1,C), b2);
+                                    signal(B, sigregistered, b2);
+                                    C:= incallcount(Remove(n1,C));
+                                    S:= insert(b2, S);
+                                 else stop
+                                 end if
+                                 
+                                 []
+                                 
+                                 if is_reqachieve(r1) then
+                                    childrenout(B, b2, notify(m2, acceptx));
+                                    var p1:Proposal in
+                                    p1:= content(r1);
+                                    Broadcast [childrenout] (B, poolnotify(n1,acceptx), S);
+                                    Broadcast [childrenout] (B, tell(p1), S);
+                                    signal(B, sigstored, p1, query(K,p1));
+                                    C:= remove(n1,C);
+                                    K:= (K + p1)
+                                    end var
+                                 else stop
+                                 end if
+                                 
+                                 []
+                                 
+                                 if is_reqforward(r1) then
+                                    select
+                                       
+                                       if not(G == some(b2)) then
+                                          var r2: Request in
+                                          r2:= content(r1);
+                                          Broadcast [childrenout] (B, poolnotify(n1,acceptx), S);
+                                          select
+                                             
+                                             if is_reqregister(r2) then 
+                                                var b3: BaseId in
+                                                b3:= content(r2);
+                                                parentout(B, b3, register(NA,b3));
+                                                A:=Insert(submitted(NA,r2,b2,m2),A);
+                                                NA:=next(NA);
+                                                C:= Remove(n1,C)
+                                                end var
+                                             else stop
+                                             end if
+                                             
+                                             []
+                                             
+                                             if is_reqevaluate(r2) then
+                                                if issome(G) then
+                                                   parentout(B, the(G), evaluate(NA,content(r2)));
+                                                   A:=Insert(submitted(NA,r2,b2,m2),A);
+                                                   NA:=next(NA);
+                                                   C:= Remove(n1,C)
+                                                else stop
+                                                end if
+                                             else stop
+                                             end if
+                                             
+                                             []
+                                             
+                                             if is_reqachieve(r2) then
+                                                if issome(G) then
+                                                   parentout(B, the(G), achieve(NA,content(r2)));
+                                                   A:=Insert(submitted(NA,r2,b2,m2),A);
+                                                   NA:=next(NA);
+                                                   C:= Remove(n1,C)
+                                                else stop
+                                                end if
+                                             else stop
+                                             end if
+                                             
+                                             []
+                                             
+                                             if is_reqforward(r2) then
+                                                if issome(G) then
+                                                   parentout(B, the(G), forward(NA,content(r2)));
+                                                   A:=Insert(submitted(NA,r2,b2,m2),A);
+                                                   NA:=next(NA);
+                                                   C:= Remove(n1,C)
+                                                else stop
+                                                end if
+                                             else stop
+                                             end if
+                                             
+                                          end select
+                                          end var
+                                       else stop
+                                       end if
+                                       
+                                       []
+                                       
+                                       if G == some(b2) then
+                                          select
+                                             
+                                             if m2 isin P then
+                                                if status(get(m2,P)) == new then
+                                                   parentout(B, the(G), reply(m2,acceptx));
+                                                   Broadcast [childrenout] (B, poolnotify(n1,acceptx), S);
+                                                   P:= Insert(set_status(accepted,Get(m2,P)),P);
+                                                   C:= Remove(n1, C)
+                                                else stop
+                                                end if
+                                             else stop
+                                             end if
+                                             
+                                             []
+                                             
+                                             if m2 notin P then
+                                                signal(B, signotinP, msg);
+                                                Broadcast [childrenout] (B, poolnotify(n1,acceptx), S);
+                                                C:= Remove(n1, C)
+                                             else stop
+                                             end if
+                                             
+                                          end select
+                                       else stop
+                                       end if
+                                       
+                                    end select
+                                 else stop
+                                 end if
+                                 
+                                 []
+                                 
+                                 if is_reqtell(r1) then
+                                    if G == some(b2) then
+                                       var p1:Proposal in
+                                       p1:=:content(r1);
+                                       Broadcast [childrenout] (B, poolnotify(n1,acceptx), S);
+                                       Broadcast [childrenout] (B, tell(p1), S);
+                                       signal(B, sigstored, p1, query(K,p1));
+                                       C:= Remove(n1,C);
+                                       K:= K + p1
+                                       end var
+                                    else stop
+                                    end if
+                                 else stop
+                                 end if
+                                 
+                              end select
+                           else stop
+                           end if
+                           
+                           []
+                           
+                           if x1 > 1 then
+                              C:= Insert(set_count(pred(x1),entry),C)
+                           else stop
+                           end if
+                           
+                           
+                        end select
+                     else stop
+                     end if
+                     
+                     []
+                     
+                     if is_reject(a1) then
+                        select
+                           
+                           if not(G == some(b2)) then
+                              childrenout(B, b2, notify(m2,a1));
+                              Broadcast [childrenout] (B, pooldeny(n1), S);
+                              C:= Remove(n1,C);
+                           else stop
+                           end if
+                           
+                           []
+                           
+                           if G == some(b2) then
+                              select
+                                 
+                                 if is_reqforward(r1) then
+                                    select
+                                       
+                                       if m2 isin P then
+                                          if status(get(m2,P)) == new then
+                                             parentout(B, the(G), reply(m2,reject));
+                                             Broadcast [childrenout] (B, pooldeny(n1), S);
+                                             P:=Insert(set_status(rejected,get(m2,P)),P);
+                                             C:= Remove(n1,C)
+                                          else stop
+                                          end if
+                                       else stop
+                                       end if
+                                       
+                                       []
+                                       
+                                       if m2 notin P then
+                                          signal(B, signotinP, msg);
+                                          Broadcast [childrenout] (B, pooldeny(n1), S);
+                                          C:= Remove(n1,C)
+                                       else stop
+                                       end if
+                                       
+                                    end select
+                                 else stop
+                                 end if
+                                 
+                                 []
+                                 
+                                 if is_reqtell(r1) then
+                                    Broadcast [childrenout] (B, pooldeny(n1), S);
+                                    C:= Remove(n1,C)
+                                 else stop
+                                 end if
+                                 
+                                 
+                              end select
+                           else stop
+                           end if
+                           
+                        end select
+                     else stop
+                     end if
+                     
+                     []
+                     
+                     if is_challenge(a1) then
+                        if is_reqachieve(r1) then
+                           (*** should apply to forward*(achieve(...)) too ***)
+                           select
+                           
+                              if not(G == some(b2)) then
+                                 var m1:Id, p1,p2:Proposal, r2:Request in
+                                 m1:= replywith(a1);
+                                 p1:= content(a1);
+                                 p2:= content(r1);
+                                 r2:= reqachieve(p2*p1);
+                                 childrenout(B, b2, notify(m2,a1));
+                                 Broadcast [childrenout] (B, pooldeny(n1), S);
+                                 Broadcast [childrenout] (B, askall(NC,r2), S);
+                                 C:= Insert(	cfc(NC,from,m1,r2,card(S)), remove(n1,C));
+                                 NC:= Next(NC)
+                                 end var
+                              else stop
+                              end if
+                              
+                              []
+                              
+                              if G == some(b2) then
+                                 stop
+                                 (*** should not be reached ***)
+                              else stop
+                              end if
+                              
+                           end select
+                        else stop
+                        end if
+                     else stop
+                     end if
+                     
+                  end select
+                  end var
+               else stop
+               end if
+               
+               []
+               
+               if n1 notin C then
+                  signal(B, signotinC, msg)
+               else stop
+               end if
+               
+            end select
+            end var
+         else stop
+         end if
+         
+      end select
+      end var
+      
+      []
+      
+      var from:BaseId, msg:Message in
+      parentin(?from, B, ?msg);
+      select
+         
+         if is_notify(msg) then
+            var m1: Id, a1: Answer in
+            m1:= inreplyto(msg);
+            a1:= content(msg);
+            select
+               
+               if m1 isin A then
+                  var entry: GrpSubmittedEntry, r1:Request, b2:BaseId, m2:Id incallcount
+                  entry:= Get(m1,A);
+                  r1:= req(entry);
+                  b2:=sender(entry);
+                  m2:=senderid(entry);
+                  childrenout(B, b2, notify(m2,a1));
+                  select
+                     
+                     if is_reqregister(r1) then
+                        if content(r1) of BaseId == from then
+                           select
+                              
+                              if is_acceptx(a1) then
+                                 G:= Some(from);
+                                 A:= Remove(m1,A)
+                              else stop
+                              end if
+                              
+                              []
+                              
+                              if not(is_acceptx(a1)) then
+                                 A:= Remove(m1,A)
+                              else stop
+                              end if
+                              
+                           end select
+                        else stop
+                        end if
+                     else stop
+                     end if
+                     
+                     []
+                     
+                     if not(is_reqregister(r1)) then
+                        if G == some(from) then
+                           A:= Remove(m1,A)
+                        else stop
+                        end if
+                     else stop
+                     end if
+                     
+                  end select
+                  end var
+               else stop
+               end if
+               
+               []
+               
+               if m1 notin A then
+                  signal(B, signotinA, msg)
+               else stop
+               end if
+               
+            end select
+            end var
+         else stop
+         end if
+         
+         []
+         
+         if is_askall(msg) then
+            if G == some(from) then
+               var n1:Id, r1:Request in
+               n1:= replywith(msg);
+               r1:= content(msg);
+               Broadcast [childrenout] (B, askall(NC,reqforward(r1)), S);
+               P:=Insert(pending(n1,r1,new),P);
+               C:=Insert(cfc(NC,from,n1,reqforward(r1),card(S)),C);
+               NC:= Next(NC)
+               end var
+            else stop
+            end if
+         else stop
+         end if
+         
+         []
+         
+         if is_error(msg) then
+            if G == some(from) then
+               var m1:Id in
+               m1:= inreplyto(msg);
+               select
+                  
+                  if m1 isin A then
+                     var entry: GrpSubmittedEntry, b2:BaseId, m2:Id in
+                     entry:= Get(m1,A);
+                     b2:=sender(entry);
+                     m2:=senderid(entry);
+                     childrenout(B, b2, error(m2));
+                     A:= Remove(m1,A);
+                     end var
+                  else stop
+                  end if
+                  
+                  []
+                  
+                  if m1 notin A then
+                     signal(B, signotinA, msg)
+                  else stop
+                  end if
+                  
+               end select
+               end var
+            else stop
+            end if
+         else stop
+         end if
+         
+         []
+         
+         if is_poolnotify(msg) then
+            if G == some(from) then
+               var n1: Id in
+               n1:= inreplyto(msg);
+               select
+                  
+                  if n1 isin P then
+                     select 
+                        
+                        if searchrequest(from,n1,C) then
+                           var n2:Id in
+                           n2:= id(getrequest(from,n1,C));
+                           Broadcast [childrenout] (B, poolnotify(n2,acceptx), S);
+                           P:= Remove(n1,P);
+                           C:= Remove(n2,C)
+                           end var
+                        else stop
+                        end if
+                        
+                        []
+                        
+                        if not(searchrequest(from,n1,C)) then
+                           P:= Remove(n1,P)
+                        else stop
+                        end if
+                        
+                     end select
+                  else stop
+                  end if
+                  
+                  []
+                  
+                  if n1 notin P then
+                     signal(B, signotinP, msg)
+                  else stop
+                  end if
+                  
+               end select
+               end var
+            else stop
+            end if
+         else stop
+         end if
+         
+         []
+         
+         if is_pooldeny(msg) then
+            if G == some(from) then
+               var n1: Id in
+               n1:= inreplyto(msg);
+               select
+                  
+                  if n1 isin P then
+                     select 
+                        
+                        if searchrequest(from,n1,C) then
+                           var n2:Id in
+                           n2:= id(getrequest(from,n1,C));
+                           Broadcast [childrenout] (B, pooldeny(n2,acceptx), S);
+                           P:= Remove(n1,P);
+                           C:= Remove(n2,C)
+                           end var
+                        else stop
+                        end if
+                        
+                        []
+                        
+                        if not(searchrequest(from,n1,C)) then
+                           P:= Remove(n1,P)
+                        else stop
+                        end if
+                        
+                     end select
+                  else stop
+                  end if
+                  
+                  []
+                  
+                  if n1 notin P then
+                     signal(B, signotinP, msg)
+                  else stop
+                  end if
+                  
+               end select
+               end var
+            else stop
+            end if
+         else stop
+         end if
+         
+         []
+         
+         if is_tell(msg) then
+            if G == some(from) then
+               var p1:Proposal, req:Request in
+               p1:= content(msg);
+               req = reqtell(p1);
+               select
+                  
+                  if query(K,p1) then
+                     Broadcast [childrenout] (B, askall(NC,req), S);
+                     C:= Insert(cfc(NC,from,First,req,Card(S)),C);
+                     NC := Next(NC)
+                  else stop
+                  end if
+                  
+                  []
+                  
+                  if not(query(K,p1)) then
+                     signal(B, signotconsistent, p1);
+                  else stop
+                  end if
+                  
+               end select
+               end var
+            else stop
+            end if
+         else stop
+         end if
+         
+      end select
+      end var
+      
+   end select
+   end loop
+end process
+
+(*********************************)
+
+process Broadcast [out:MessageChannel]
+	( B : BaseId,
+	  msg : Message,
+	  S : SubscriberSet ) is
+   
+   loop L in
+      select
+         
+         if S == {} then
+            break L
+         else stop
+         end if
+         
+         []
+         
+         if S <> {} then
+            var b1:BaseId in
+            b1:=pick(S);
+            out(B, b1, msg);
+            S:= Remove(b1,S)
+            end var
+         else stop
+         end if
+         
+      end select
+   end loop
+   
+end process
+
+
+process EnumerateAskall [childrenout:MessageChannel]
+	( B : BaseId,
+	  C : CfcTbl,
+	  b1 : BaseId ) is
+   
+   loop L in
+      select
+         
+         if C == {} then
+            break L
+         else stop
+         end if
+         
+         []
+         
+         if C <> {} then
+            var entry:CfcEntry in
+            b1:=pick(C);
+            childrenout(B, b1, askall(id(entry),req(entry)));
+            C:= Remove(id(entry), C)
+            end var
+         else stop
+         end if
+         
+      end select
+   end loop
+   
+end process
+
+process InitQueue[input,output: MessageChannel] is
+   Queue[input, output](<> of PacketQueue)
+end process
+
+process Queue[input,output: MessageChannel](pktq : PacketQueue) is
+   
+   loop L in
+      select
+         
+         if pktq == <> then
+            break L
+         else stop
+         end if
+         
+         []
+         
+         var b1,b2:BaseId, msg:Message in
+         input(?b1, ?b2, ?msg);
+         pktq:= pktq + packet(b1, b2, msg)
+         end var
+         
+         if pktq <> <> then
+            output(sender(First(pktq)), receiver(First(pktq)), (message(First(pktq)) );
+            pktq:= butfirst(pktq)
+         else stop
+         end if
+         
+      end select
+   end loop
+end process
+
+process Ring [g:none] is
+  g; Ring [g]
+endproc
+
+
+end module
